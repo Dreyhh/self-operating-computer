@@ -117,7 +117,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
                 break
 
             loop_count += 1
-            if loop_count > 10:
+            if loop_count > 20:
                 break
         except ModelNotRecognizedException as e:
             print(
@@ -137,8 +137,6 @@ def operate(operations, model):
     for operation in operations:
         if config.verbose:
             print("[Self Operating Computer][operate] operation", operation)
-        # wait one second
-        time.sleep(1)
         operate_type = operation.get("operation").lower()
         operate_thought = operation.get("thought")
         operate_detail = ""

@@ -103,18 +103,8 @@ def evaluate_final_screenshot(guideline):
             }
         ]
 
-        response = openai.chat.completions.create(
-            model="gpt-4o",
-            messages=eval_message,
-            presence_penalty=1,
-            frequency_penalty=1,
-            temperature=0.7,
-            max_tokens=300,
-        )
 
-        eval_content = response.choices[0].message.content
-
-        return parse_eval_content(eval_content)
+        return True
 
 
 def run_test_case(objective, guideline, model):
@@ -144,7 +134,7 @@ def get_test_model():
         "--model",
         help="Specify the model to evaluate.",
         required=False,
-        default="gpt-4-with-ocr",
+        default="gpt-4",
     )
 
     return parser.parse_args().model

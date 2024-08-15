@@ -40,8 +40,8 @@ async def get_next_action(model, messages, objective, session_id):
     if config.verbose:
         print("[Self-Operating Computer][get_next_action]")
         print("[Self-Operating Computer][get_next_action] model", model)
-    if model == "gpt-4":
-        return call_gpt_4o(messages), None
+    if True:
+        return call_gpt_4o(messages, objective), None
     if model == "gpt-4-with-som":
         operation = await call_gpt_4o_labeled(messages, objective, model)
         return operation, None
@@ -61,27 +61,47 @@ async def get_next_action(model, messages, objective, session_id):
     raise ModelNotRecognizedException(model)
 
 
-def call_gpt_4o(messages):
+def call_gpt_4o(messages,objective):
     if config.verbose:
         print("[call_gpt_4_v]")
-    time.sleep(1)
     client = config.initialize_openai()
     try:
-        screenshots_dir = "screenshots"
-        if not os.path.exists(screenshots_dir):
-            os.makedirs(screenshots_dir)
+        vision_message = {}
+        if len(messages) < 2:
+            user_prompt = get_user_first_message_prompt(objective)
 
-        screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
-        # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
-
-        with open(screenshot_filename, "rb") as img_file:
-            img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
-
-        if len(messages) == 1:
-            user_prompt = get_user_first_message_prompt()
+            vision_message = {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt}
+                ],
+            }
         else:
             user_prompt = get_user_prompt()
+
+            screenshots_dir = "screenshots"
+            if not os.path.exists(screenshots_dir):
+                os.makedirs(screenshots_dir)
+
+            screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
+            # Call the function to capture the screen with the cursor
+            capture_screen_with_cursor(screenshot_filename)
+
+            with open(screenshot_filename, "rb") as img_file:
+                img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
+
+            vision_message = {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_base64}",  "detail": "high"},
+                        
+                    },
+                ],
+            }
 
         if config.verbose:
             print(
@@ -89,16 +109,6 @@ def call_gpt_4o(messages):
                 user_prompt,
             )
 
-        vision_message = {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
-                },
-            ],
-        }
         messages.append(vision_message)
 
         response = client.chat.completions.create(
@@ -106,7 +116,7 @@ def call_gpt_4o(messages):
             messages=messages,
             presence_penalty=1,
             frequency_penalty=1,
-            temperature=0.7,
+            temperature=0,
             max_tokens=3000,
         )
 
@@ -549,6 +559,7 @@ async def call_claude_3_with_ocr(messages, objective, model):
         # downsize screenshot due to 5MB size limit
         with open(screenshot_filename, "rb") as img_file:
             img = Image.open(img_file)
+            img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
 
             # Convert RGBA to RGB
             if img.mode == "RGBA":
@@ -602,7 +613,7 @@ async def call_claude_3_with_ocr(messages, objective, model):
 
         # anthropic api expect system prompt as an separate argument
         response = client.messages.create(
-            model="claude-3-opus-20240229",
+            model="claude-3-sonnet-20240229",
             max_tokens=3000,
             system=messages[0]["content"],
             messages=messages[1:],
@@ -620,7 +631,7 @@ async def call_claude_3_with_ocr(messages, objective, model):
                     f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] JSONDecodeError: {e} {ANSI_RESET}"
                 )
             response = client.messages.create(
-                model="claude-3-opus-20240229",
+                model="claude-3-sonnet-20240229",
                 max_tokens=3000,
                 system=f"This json string is not valid, when using with json.loads(content) \
                 it throws the following error: {e}, return correct json string. \
@@ -636,51 +647,7 @@ async def call_claude_3_with_ocr(messages, objective, model):
             print(
                 f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] content: {content} {ANSI_RESET}"
             )
-        processed_content = []
-
-        for operation in content:
-            if operation.get("operation") == "click":
-                text_to_click = operation.get("text")
-                if config.verbose:
-                    print(
-                        "[call_claude_3_ocr][click] text_to_click",
-                        text_to_click,
-                    )
-                # Initialize EasyOCR Reader
-                reader = easyocr.Reader(["en"])
-
-                # Read the screenshot
-                result = reader.readtext(screenshot_filename)
-
-                # limit the text to extract has a higher success rate
-                text_element_index = get_text_element(
-                    result, text_to_click[:3], screenshot_filename
-                )
-                coordinates = get_text_coordinates(
-                    result, text_element_index, screenshot_filename
-                )
-
-                # add `coordinates`` to `content`
-                operation["x"] = coordinates["x"]
-                operation["y"] = coordinates["y"]
-
-                if config.verbose:
-                    print(
-                        "[call_claude_3_ocr][click] text_element_index",
-                        text_element_index,
-                    )
-                    print(
-                        "[call_claude_3_ocr][click] coordinates",
-                        coordinates,
-                    )
-                    print(
-                        "[call_claude_3_ocr][click] final operation",
-                        operation,
-                    )
-                processed_content.append(operation)
-
-            else:
-                processed_content.append(operation)
+        processed_content = content
 
         assistant_message = {"role": "assistant", "content": content_str}
         messages.append(assistant_message)

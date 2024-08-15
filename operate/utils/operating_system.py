@@ -17,24 +17,24 @@ class OperatingSystem:
 
     def press(self, keys):
         try:
+            is_shift = False
             for key in keys:
                 pyautogui.keyDown(key)
             time.sleep(0.1)
             for key in keys:
+                if key == "shift":
+                    is_shift = True
+                    continue
                 pyautogui.keyUp(key)
+            if is_shift:
+                time.sleep(0.1)
+                pyautogui.keyUp("shift")
         except Exception as e:
             print("[OperatingSystem][press] error:", e)
 
     def mouse(self, click_detail):
-        try:
-            x = convert_percent_to_decimal(click_detail.get("x"))
-            y = convert_percent_to_decimal(click_detail.get("y"))
-
-            if click_detail and isinstance(x, float) and isinstance(y, float):
-                self.click_at_percentage(x, y)
-
-        except Exception as e:
-            print("[OperatingSystem][mouse] error:", e)
+        return None
+        
 
     def click_at_percentage(
         self,
